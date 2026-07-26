@@ -1,0 +1,85 @@
+﻿version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: resume-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: resume123
+      MYSQL_DATABASE: resume_agent
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - resume-net
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: resume-chroma
+    ports:
+      - "8001:8000"
+    networks:
+      - resume-net
+
+  python-service:
+    build: ./python-service
+    container_name: resume-python
+    ports:
+      - "8000:8000"
+    environment:
+      PRIMARY_MODEL: deepseek-chat
+      FALLBACK_MODEL: qwen-turbo
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: resume123
+      MYSQL_DATABASE: resume_agent
+      CHROMA_URL: http://chroma:8000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    networks:
+      - resume-net
+
+  java-service:
+    build: ./java-service
+    container_name: resume-java
+    ports:
+      - "8080:8080"
+    environment:
+      PYTHON_SERVICE_URL: http://python-service:8000
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: resume123
+      MYSQL_DATABASE: resume_agent
+    depends_on:
+      - python-service
+    networks:
+      - resume-net
+
+  frontend:
+    image: nginx:alpine
+    container_name: resume-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - java-service
+    networks:
+      - resume-net
+
+networks:
+  resume-net:
+    driver: bridge

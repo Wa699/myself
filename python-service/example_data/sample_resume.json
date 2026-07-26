@@ -1,0 +1,49 @@
+{
+  "basics": {
+    "name": "张三",
+    "title": "高级后端工程师",
+    "summary": "8年Java后端开发经验，擅长微服务架构设计和性能优化。主导过日活百万级电商平台的后端架构升级。"
+  },
+  "skills": [
+    "Java",
+    "Spring Boot",
+    "Spring Cloud",
+    "MySQL",
+    "Redis",
+    "Kafka",
+    "Docker",
+    "Kubernetes",
+    "Python",
+    "Go"
+  ],
+  "projects": [
+    {
+      "name": "电商平台微服务改造",
+      "description": "将单体电商应用拆分为30+微服务，引入Spring Cloud Gateway做统一网关，使用Kafka处理订单异步流程，最终系统吞吐量提升5倍。",
+      "tech": ["Spring Cloud", "Kafka", "Docker", "K8s"]
+    },
+    {
+      "name": "实时数据同步平台",
+      "description": "设计并实现了基于Canal+MySQL binlog的实时数据同步方案，支持多数据源到Elasticsearch、Redis的秒级同步，服务了10+业务线。",
+      "tech": ["Canal", "MySQL", "Elasticsearch", "Redis"]
+    }
+  ],
+  "education": [
+    {
+      "school": "北京大学",
+      "degree": "硕士",
+      "major": "计算机科学与技术",
+      "year": "2014-2017"
+    },
+    {
+      "school": "武汉大学",
+      "degree": "学士",
+      "major": "软件工程",
+      "year": "2010-2014"
+    }
+  ],
+  "honors": [
+    "2022年公司年度技术之星",
+    "ACM/ICPC亚洲区域赛银牌"
+  ]
+}
