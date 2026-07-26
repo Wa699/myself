@@ -1,11 +1,20 @@
 ﻿import os
 import chromadb
 from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
 
 from config import CHROMA_HOST, CHROMA_PORT, CHROMA_COLLECTION
 
 _client = None
 _ef = None
+_use_http = None
+
+
+def _is_http():
+    global _use_http
+    if _use_http is None:
+        _use_http = bool(CHROMA_HOST)
+    return _use_http
 
 
 def _get_client():
@@ -13,8 +22,7 @@ def _get_client():
     if _client is None:
         host = CHROMA_HOST
         port = int(CHROMA_PORT) if CHROMA_PORT else 8000
-        # Use HttpClient for remote Chroma, PersistentClient for local
-        if host and host != "localhost" and host != "127.0.0.1":
+        if _is_http():
             _client = chromadb.HttpClient(host=host, port=port)
         else:
             _client = chromadb.PersistentClient(path="./chroma_data")
@@ -24,7 +32,7 @@ def _get_client():
 def _get_ef():
     global _ef
     if _ef is None:
-        _ef = embedding_functions.DefaultEmbeddingFunction()
+        _ef = ONNXMiniLM_L6_V2()
     return _ef
 
 

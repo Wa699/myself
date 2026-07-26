@@ -1,11 +1,9 @@
-﻿version: "3.9"
-
-services:
+﻿services:
   mysql:
     image: mysql:8.0
     container_name: resume-mysql
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: resume123
       MYSQL_DATABASE: resume_agent
@@ -36,14 +34,11 @@ services:
       PRIMARY_MODEL: deepseek-chat
       FALLBACK_MODEL: qwen-turbo
       PRIMARY_API_KEY: REDACTED_OLD_KEY
-      FALLBACK_API_KEY: 
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: root
-      MYSQL_PASSWORD: resume123
-      MYSQL_DATABASE: resume_agent
+      FALLBACK_API_KEY: ""
       CHROMA_HOST: chroma
-      CHROMA_PORT: '8000'
+      CHROMA_PORT: "8000"
+    volumes:
+      - chroma_model_cache:/root/.cache/chroma
     depends_on:
       mysql:
         condition: service_healthy
@@ -76,10 +71,14 @@ services:
       - "3000:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - java-service
     networks:
       - resume-net
+
+volumes:
+  chroma_model_cache:
 
 networks:
   resume-net:
