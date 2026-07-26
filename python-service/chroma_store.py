@@ -1,32 +1,34 @@
+﻿import os
 import chromadb
 from chromadb.utils import embedding_functions
 
 from config import CHROMA_HOST, CHROMA_PORT, CHROMA_COLLECTION
 
-_client: chromadb.PersistentClient | None = None
-_ef: embedding_functions.SentenceTransformerEmbeddingFunction | None = None
+_client = None
+_ef = None
 
 
-def _get_client() -> chromadb.PersistentClient:
+def _get_client():
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(
-            host=CHROMA_HOST,
-            port=CHROMA_PORT,
-        )
+        host = CHROMA_HOST
+        port = int(CHROMA_PORT) if CHROMA_PORT else 8000
+        # Use HttpClient for remote Chroma, PersistentClient for local
+        if host and host != "localhost" and host != "127.0.0.1":
+            _client = chromadb.HttpClient(host=host, port=port)
+        else:
+            _client = chromadb.PersistentClient(path="./chroma_data")
     return _client
 
 
-def _get_ef() -> embedding_functions.SentenceTransformerEmbeddingFunction:
+def _get_ef():
     global _ef
     if _ef is None:
-        _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
+        _ef = embedding_functions.DefaultEmbeddingFunction()
     return _ef
 
 
-def get_collection() -> chromadb.Collection:
+def get_collection():
     client = _get_client()
     ef = _get_ef()
     return client.get_or_create_collection(
@@ -36,7 +38,6 @@ def get_collection() -> chromadb.Collection:
 
 
 def clear_and_rebuild(documents: list[dict]) -> int:
-    """删除旧集合后全量重建。documents: [{"id": str, "text": str, "metadata": dict}]"""
     client = _get_client()
     ef = _get_ef()
 
@@ -62,7 +63,6 @@ def clear_and_rebuild(documents: list[dict]) -> int:
 
 
 def add_documents(documents: list[dict]) -> int:
-    """增量追加文档。"""
     if not documents:
         return 0
 
