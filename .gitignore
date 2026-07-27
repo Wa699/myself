@@ -27,3 +27,9 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Resumes (private data)
+resumes/*.pdf
+resumes/*.docx
+resumes/*.txt
+resumes/*.md

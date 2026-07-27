@@ -14,12 +14,12 @@ export async function sendMessage(sessionId, question) {
   return data
 }
 
-export async function sendMessageStream(question, onToken, onDone, onError) {
+export async function sendMessageStream(question, sessionId, history, onToken, onDone, onError) {
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, history: history || [] })
     })
 
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)

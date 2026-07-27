@@ -33,6 +33,9 @@ def _build_user_prompt(question: str, context_chunks: list[str]) -> str:
     return f"候选人资料：\n{chunks_text}\n\n问题：{question}"
 
 
+MAX_HISTORY_ROUNDS = 20  # 最多保留 20 轮（40 条消息）
+
+
 def _call_model(
     model: str,
     api_key: str,
@@ -66,16 +69,15 @@ def _try_model(
     base_url: str,
     question: str,
     context_chunks: list[str],
+    history: list[dict] | None = None,
 ) -> str:
-    """用指定模型生成 RAG 回答（带简历上下文）。"""
+    """用指定模型生成 RAG 回答（带简历上下文和对话历史）。"""
     user_prompt = _build_user_prompt(question, context_chunks)
-    return _call_model(
-        model, api_key, base_url,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-    )
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if history:
+        messages.extend(history[-(MAX_HISTORY_ROUNDS * 2):])  # 限制轮数
+    messages.append({"role": "user", "content": user_prompt})
+    return _call_model(model, api_key, base_url, messages=messages)
 
 
 def _try_primary_fallback(messages_fn) -> tuple[str, int]:
@@ -103,23 +105,24 @@ def _try_primary_fallback(messages_fn) -> tuple[str, int]:
     raise RuntimeError("所有模型均不可用")
 
 
-def generate_answer(question: str, context_chunks: list[str]) -> tuple[str, int]:
+def generate_answer(question: str, context_chunks: list[str], history: list[dict] | None = None) -> tuple[str, int]:
     """返回 (answer, duration_ms)。RAG 模式：带简历上下文回答。"""
     def _call(model, api_key, base_url):
-        return _try_model(model, api_key, base_url, question, context_chunks)
+        return _try_model(model, api_key, base_url, question, context_chunks, history)
 
     return _try_primary_fallback(_call)
 
 
-def generate_free_chat(question: str) -> tuple[str, int]:
+def generate_free_chat(question: str, history: list[dict] | None = None) -> tuple[str, int]:
     """返回 (answer, duration_ms)。自由对话模式：无简历上下文，模型自行判断是寒暄还是无法回答。"""
     def _call(model, api_key, base_url):
+        messages = [{"role": "system", "content": FREE_CHAT_SYSTEM_PROMPT}]
+        if history:
+            messages.extend(history[-(MAX_HISTORY_ROUNDS * 2):])
+        messages.append({"role": "user", "content": question})
         return _call_model(
             model, api_key, base_url,
-            messages=[
-                {"role": "system", "content": FREE_CHAT_SYSTEM_PROMPT},
-                {"role": "user", "content": question},
-            ],
+            messages=messages,
             temperature=0.7,
         )
 
@@ -209,13 +212,13 @@ def _call_model_stream(model: str, api_key: str, base_url: str,
             continue
 
 
-def generate_answer_stream(question: str, context_chunks: list[str]):
+def generate_answer_stream(question: str, context_chunks: list[str], history: list[dict] | None = None):
     """流式 RAG 回答。主模型优先，失败降级。"""
     user_prompt = _build_user_prompt(question, context_chunks)
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if history:
+        messages.extend(history[-(MAX_HISTORY_ROUNDS * 2):])
+    messages.append({"role": "user", "content": user_prompt})
 
     # 尝试主模型
     if PRIMARY_API_KEY:
@@ -236,12 +239,12 @@ def generate_answer_stream(question: str, context_chunks: list[str]):
     raise RuntimeError("所有模型均不可用")
 
 
-def generate_free_chat_stream(question: str):
+def generate_free_chat_stream(question: str, history: list[dict] | None = None):
     """流式自由对话。"""
-    messages = [
-        {"role": "system", "content": FREE_CHAT_SYSTEM_PROMPT},
-        {"role": "user", "content": question},
-    ]
+    messages = [{"role": "system", "content": FREE_CHAT_SYSTEM_PROMPT}]
+    if history:
+        messages.extend(history[-(MAX_HISTORY_ROUNDS * 2):])
+    messages.append({"role": "user", "content": question})
 
     if PRIMARY_API_KEY:
         try:

@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { sendMessage, sendMessageStream } from '../api/chat.js'
 
 // 简单 Markdown → HTML 渲染
@@ -74,6 +74,12 @@ const streaming = ref(false)
 const streamingContent = ref('')
 const messagesContainer = ref(null)
 
+// 生成或复用 sessionId
+const sessionId = ref(props.sessionId || crypto.randomUUID())
+onMounted(() => {
+  emit('update:sessionId', sessionId.value)
+})
+
 async function scrollToBottom() {
   await nextTick()
   const el = messagesContainer.value
@@ -89,8 +95,13 @@ async function handleSend() {
   streamingContent.value = ''
   await scrollToBottom()
 
+  // 构建历史：取最近 20 轮（40 条消息）
+  const history = messages.value.slice(0, -1).slice(-40)
+
   sendMessageStream(
     q,
+    sessionId.value,
+    history,
     // onToken
     (token) => {
       streamingContent.value += token

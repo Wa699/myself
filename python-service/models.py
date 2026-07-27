@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     question: str
+    history: list[dict] = []  # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
 
 
 class Citation(BaseModel):

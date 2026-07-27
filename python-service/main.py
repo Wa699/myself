@@ -43,10 +43,12 @@ def chat(req: ChatRequest) -> ChatResponse:
             duration_ms=duration_ms,
         )
 
+    history = req.history or []
+
     if not is_sufficient(results):
         # 检索不充分时，让 LLM 自行判断：寒暄则自然回复，简历问题则如实说无法确认
         try:
-            answer, llm_duration_ms = generate_free_chat(req.question)
+            answer, llm_duration_ms = generate_free_chat(req.question, history)
             duration_ms = int((time.time() - start) * 1000)
             return ChatResponse(
                 answer=answer,
@@ -65,7 +67,7 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     context_chunks = [r["text"] for r in results]
     try:
-        answer, llm_duration_ms = generate_answer(req.question, context_chunks)
+        answer, llm_duration_ms = generate_answer(req.question, context_chunks, history)
     except RuntimeError:
         duration_ms = int((time.time() - start) * 1000)
         return ChatResponse(
@@ -227,10 +229,12 @@ async def chat_stream(req: ChatRequest):
             yield f"data: {json.dumps({'error': '向量检索服务异常，请稍后重试'})}\n\n"
             return
 
+        history = req.history or []
+
         if not is_sufficient(results):
             # 自由对话流式
             try:
-                for token in generate_free_chat_stream(req.question):
+                for token in generate_free_chat_stream(req.question, history):
                     yield f"data: {json.dumps({'token': token})}\n\n"
                 evidence = False
             except RuntimeError:
@@ -240,7 +244,7 @@ async def chat_stream(req: ChatRequest):
             # RAG 流式
             context_chunks = [r["text"] for r in results]
             try:
-                for token in generate_answer_stream(req.question, context_chunks):
+                for token in generate_answer_stream(req.question, context_chunks, history):
                     yield f"data: {json.dumps({'token': token})}\n\n"
                 evidence = True
             except RuntimeError:

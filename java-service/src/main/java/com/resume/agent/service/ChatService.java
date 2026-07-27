@@ -6,7 +6,10 @@ import com.resume.agent.repository.ChatLogRepository;
 import com.resume.agent.repository.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -14,6 +17,8 @@ public class ChatService {
     private final SessionRepository sessionRepository;
     private final ChatLogRepository chatLogRepository;
     private final PythonClient pythonClient;
+
+    private static final int MAX_HISTORY_ROUNDS = 20;
 
     public ChatService(SessionRepository sessionRepository, ChatLogRepository chatLogRepository, PythonClient pythonClient) {
         this.sessionRepository = sessionRepository;
@@ -35,8 +40,26 @@ public class ChatService {
             return sessionRepository.save(s);
         });
 
-        // 2. Call Python service
+        // 2. Fetch conversation history from DB
+        List<ChatLog> recentLogs = chatLogRepository.findBySessionIdOrderByCreatedAtAsc(finalSessionId);
+        List<Map<String, String>> history = new ArrayList<>();
+        int start = Math.max(0, recentLogs.size() - MAX_HISTORY_ROUNDS * 2);
+        for (int i = start; i < recentLogs.size(); i++) {
+            ChatLog log = recentLogs.get(i);
+            Map<String, String> userMsg = new HashMap<>();
+            userMsg.put("role", "user");
+            userMsg.put("content", log.getQuestion());
+            history.add(userMsg);
+
+            Map<String, String> assistantMsg = new HashMap<>();
+            assistantMsg.put("role", "assistant");
+            assistantMsg.put("content", log.getAnswer());
+            history.add(assistantMsg);
+        }
+
+        // 3. Call Python service with history
         PythonChatRequest pyReq = new PythonChatRequest(request.getQuestion());
+        pyReq.setHistory(history);
         PythonChatResponse pyResp;
         ChatLog log = new ChatLog();
         log.setSessionId(finalSessionId);
