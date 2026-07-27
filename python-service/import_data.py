@@ -5,7 +5,6 @@ from chroma_store import clear_and_rebuild
 
 
 def import_resume_data(file_path: str) -> int:
-    """读取简历 JSON 文件，按段落分块后写入 Chroma。返回导入的 chunk 数量。"""
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -14,8 +13,9 @@ def import_resume_data(file_path: str) -> int:
 
     basics = data.get("basics", {})
     name = basics.get("name", "未知")
+    title = basics.get("title", "")
 
-    # 基本信息摘要
+    # 基本信息摘要（title 存入 metadata，profile 由 API 动态重构）
     summary = basics.get("summary", "")
     if summary:
         chunks = chunk_text(summary)
@@ -23,7 +23,7 @@ def import_resume_data(file_path: str) -> int:
             documents.append({
                 "id": f"chunk_{chunk_idx}",
                 "text": c,
-                "metadata": {"category": "basics", "title": f"{name} - 个人简介", "name": name},
+                "metadata": {"category": "basics", "title": f"{name} - 个人简介", "name": name, "detail": title},
             })
             chunk_idx += 1
 

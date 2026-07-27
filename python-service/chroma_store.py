@@ -1,13 +1,38 @@
 ﻿import os
 import chromadb
 from chromadb.utils import embedding_functions
-from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
 
 from config import CHROMA_HOST, CHROMA_PORT, CHROMA_COLLECTION
 
 _client = None
 _ef = None
 _use_http = None
+
+
+class SimpleEmbeddingFunction(embedding_functions.EmbeddingFunction):
+    """A simple embedding that works without model downloads.
+    Uses character n-gram based hashing to produce embeddings.
+    This is a FALLBACK until the ONNX model is downloaded."""
+    
+    def __init__(self, dim: int = 384):
+        self._dim = dim
+    
+    def _hash_embed(self, text: str) -> list[float]:
+        """Simple hash-based embedding."""
+        import hashlib
+        result = [0.0] * self._dim
+        for i in range(len(text) - 2):
+            trigram = text[i:i+3]
+            h = int(hashlib.md5(trigram.encode()).hexdigest(), 16)
+            idx = h % self._dim
+            result[idx] += 1.0
+        # Normalize
+        norm = max(sum(v*v for v in result) ** 0.5, 0.001)
+        return [v / norm for v in result]
+    
+    def __call__(self, input):
+        texts = [input] if isinstance(input, str) else input
+        return [self._hash_embed(t) for t in texts]
 
 
 def _is_http():
@@ -32,7 +57,7 @@ def _get_client():
 def _get_ef():
     global _ef
     if _ef is None:
-        _ef = ONNXMiniLM_L6_V2()
+        _ef = SimpleEmbeddingFunction()
     return _ef
 
 

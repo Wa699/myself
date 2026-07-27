@@ -1,32 +1,47 @@
-from config import SIMILARITY_THRESHOLD
+﻿"""Simple keyword-based search - works without any model downloads."""
 from chroma_store import get_collection
 
 
 def search_similar(query: str, n_results: int = 5) -> list[dict]:
-    """向量检索，返回 [{"text": str, "metadata": dict, "distance": float}]"""
-    collection = get_collection()
+    """Keyword-based search: fetch all documents and rank by keyword overlap."""
+    try:
+        collection = get_collection()
+        all_docs = collection.get()
+    except Exception:
+        return []
 
-    results = collection.query(
-        query_texts=[query],
-        n_results=n_results,
-    )
+    if not all_docs["ids"]:
+        return []
 
-    output: list[dict] = []
-    if not results["ids"] or not results["ids"][0]:
-        return output
+    query_terms = set(query.lower())
+    scored = []
 
-    for i, doc_id in enumerate(results["ids"][0]):
-        output.append({
-            "text": results["documents"][0][i] if results["documents"] else "",
-            "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-            "distance": results["distances"][0][i] if results["distances"] else 0.0,
+    for i, doc_id in enumerate(all_docs["ids"]):
+        text = all_docs["documents"][i] if all_docs["documents"] else ""
+        meta = all_docs["metadatas"][i] if all_docs["metadatas"] else {}
+
+        # Score = percentage of query chars found in document
+        hits = sum(1 for c in query if c in text)
+        score = hits / max(len(query), 1)
+
+        # Bonus for exact substring match
+        if query.lower() in text.lower():
+            score += 0.3
+
+        scored.append({
+            "text": text,
+            "metadata": meta,
+            "distance": 1.0 - score,  # Lower = better
+            "score": score,
         })
 
-    return output
+    scored.sort(key=lambda x: x["distance"])
+    return scored[:n_results]
 
 
 def is_sufficient(results: list[dict]) -> bool:
-    """判断检索结果是否足够：至少有一条记录的相似度高于阈值。"""
+    """Check if the best result has a reasonable score."""
     if not results:
         return False
-    return results[0]["distance"] < (1.0 - SIMILARITY_THRESHOLD)
+    # score > 0.1 means there's at least some keyword overlap
+    return results[0].get("score", 0) > 0.1

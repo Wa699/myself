@@ -19,4 +19,4 @@ class ChatResponse(BaseModel):
 
 
 class ImportRequest(BaseModel):
-    file_path: str
+    file_path: str  # 支持 .json / .pdf / .docx / .txt / .md
