@@ -5,7 +5,7 @@
         在下方输入问题，了解候选人的技能、项目和经历
       </div>
       <div v-for="(msg, i) in messages" :key="i" :class="['message', msg.role]">
-        <div class="message-content">{{ msg.content }}</div>
+        <div class="message-content" v-html="renderMd(msg.content)"></div>
         <div v-if="msg.citations && msg.citations.length > 0" class="citations">
           <div class="citation-label">参考来源：</div>
           <div v-for="(cite, j) in msg.citations" :key="j" class="citation-item">
@@ -15,7 +15,10 @@
           </div>
         </div>
       </div>
-      <div v-if="loading" class="message assistant">
+      <div v-if="streaming" class="message assistant">
+        <div class="message-content" v-html="renderMd(streamingContent) + '<span class=cursor>|</span>'"></div>
+      </div>
+      <div v-else-if="loading" class="message assistant">
         <div class="loading-dots"><span>.</span><span>.</span><span>.</span></div>
       </div>
     </div>
@@ -34,7 +37,32 @@
 
 <script setup>
 import { ref, nextTick } from 'vue'
-import { sendMessage } from '../api/chat.js'
+import { sendMessage, sendMessageStream } from '../api/chat.js'
+
+// 简单 Markdown → HTML 渲染
+function renderMd(text) {
+  if (!text) return ''
+  let html = text
+    // 粗体
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // 行内代码
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // 无序列表
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+    // 有序列表
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    // 段落：双换行
+    .replace(/\n\n/g, '</p><p>')
+    // 单换行
+    .replace(/\n/g, '<br>')
+  html = '<p>' + html + '</p>'
+  // 清理空标签
+  html = html.replace(/<p>\s*<\/p>/g, '')
+  html = html.replace(/<p><ul>/g, '<ul>')
+  html = html.replace(/<\/ul><\/p>/g, '</ul>')
+  return html
+}
 
 const props = defineProps({ sessionId: { type: String, default: null } })
 const emit = defineEmits(['update:sessionId'])
@@ -42,6 +70,8 @@ const emit = defineEmits(['update:sessionId'])
 const messages = ref([])
 const input = ref('')
 const loading = ref(false)
+const streaming = ref(false)
+const streamingContent = ref('')
 const messagesContainer = ref(null)
 
 async function scrollToBottom() {
@@ -52,30 +82,43 @@ async function scrollToBottom() {
 
 async function handleSend() {
   const q = input.value.trim()
-  if (!q || loading.value) return
+  if (!q || loading.value || streaming.value) return
   input.value = ''
   messages.value.push({ role: 'user', content: q })
-  loading.value = true
+  streaming.value = true
+  streamingContent.value = ''
   await scrollToBottom()
 
-  try {
-    const resp = await sendMessage(props.sessionId, q)
-    if (resp.sessionId) emit('update:sessionId', resp.sessionId)
-    messages.value.push({
-      role: 'assistant',
-      content: resp.answer,
-      citations: resp.citations || []
-    })
-  } catch (e) {
-    messages.value.push({
-      role: 'assistant',
-      content: '网络错误，请稍后重试',
-      citations: []
-    })
-  } finally {
-    loading.value = false
-    await scrollToBottom()
-  }
+  sendMessageStream(
+    q,
+    // onToken
+    (token) => {
+      streamingContent.value += token
+      scrollToBottom()
+    },
+    // onDone
+    (data) => {
+      messages.value.push({
+        role: 'assistant',
+        content: streamingContent.value,
+        citations: data.citations || []
+      })
+      streaming.value = false
+      streamingContent.value = ''
+      scrollToBottom()
+    },
+    // onError
+    (errMsg) => {
+      messages.value.push({
+        role: 'assistant',
+        content: errMsg,
+        citations: []
+      })
+      streaming.value = false
+      streamingContent.value = ''
+      scrollToBottom()
+    }
+  )
 }
 
 async function sendQuestion(question) {
@@ -122,7 +165,24 @@ defineExpose({ sendQuestion })
   padding: 10px 14px;
   font-size: 14px;
   line-height: 1.6;
+}
+.message.user .message-content {
   display: inline-block;
+}
+.message.assistant .message-content {
+  display: block;
+}
+.message-content :deep(p) { margin: 0 0 8px; }
+.message-content :deep(p:last-child) { margin-bottom: 0; }
+.message-content :deep(ul), .message-content :deep(ol) { margin: 4px 0; padding-left: 18px; }
+.message-content :deep(li) { margin: 2px 0; }
+.message-content :deep(strong) { font-weight: 600; }
+.message-content :deep(code) {
+  background: #e8ecf1;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: monospace;
 }
 .citations {
   margin-top: 6px;
@@ -144,6 +204,12 @@ defineExpose({ sendQuestion })
 }
 .cite-title { color: #333; font-weight: 500; }
 .cite-excerpt { color: #777; margin: 2px 0 0; font-size: 12px; }
+.cursor {
+  display: inline-block;
+  color: #4a6cf7;
+  animation: blink 1s step-end infinite;
+  font-weight: 700;
+}
 .loading-dots span {
   display: inline-block;
   animation: blink 1.4s infinite both;

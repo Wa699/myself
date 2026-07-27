@@ -1,5 +1,5 @@
-<template>
-  <div class="profile-card">
+﻿<template>
+  <div class="profile-card" v-if="profile.name">
     <div class="profile-header">
       <h2 class="profile-name">{{ profile.name }}</h2>
       <span class="profile-title">{{ profile.title }}</span>
@@ -12,12 +12,18 @@
 </template>
 
 <script setup>
-const profile = {
-  name: '张三',
-  title: '高级后端工程师',
-  summary: '8年Java后端开发经验，擅长微服务架构设计和性能优化。主导过日活百万级电商平台的后端架构升级。',
-  skills: ['Java', 'Spring Boot', 'Spring Cloud', 'MySQL', 'Redis', 'Kafka', 'Docker', 'Kubernetes', 'Python', 'Go']
-}
+import { ref, onMounted } from 'vue'
+
+const profile = ref({ name: '', title: '', summary: '', skills: [] })
+
+onMounted(async () => {
+  try {
+    const resp = await fetch('/api/profile')
+    profile.value = await resp.json()
+  } catch (e) {
+    console.error('Failed to load profile:', e)
+  }
+})
 </script>
 
 <style scoped>

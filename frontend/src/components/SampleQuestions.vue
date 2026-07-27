@@ -1,5 +1,5 @@
-<template>
-  <div class="sample-questions">
+﻿<template>
+  <div class="sample-questions" v-if="questions.length">
     <h3 class="sq-title">试试这些问题</h3>
     <div class="sq-list">
       <button v-for="q in questions" :key="q" class="sq-chip" @click="$emit('select', q)">{{ q }}</button>
@@ -8,14 +8,20 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
+
 defineEmits(['select'])
-const questions = [
-  '张三有哪些核心技术能力？',
-  '请介绍一下张三做的电商平台微服务改造项目',
-  '张三的教育背景是什么？',
-  '张三获得过哪些荣誉？',
-  '张三会哪些编程语言？'
-]
+const questions = ref([])
+
+onMounted(async () => {
+  try {
+    const resp = await fetch('/api/sample-questions')
+    const data = await resp.json()
+    questions.value = data.questions || []
+  } catch (e) {
+    console.error('Failed to load questions:', e)
+  }
+})
 </script>
 
 <style scoped>
