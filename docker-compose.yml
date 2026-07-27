@@ -2,13 +2,15 @@
   mysql:
     image: mysql:8.0
     container_name: resume-mysql
+    restart: unless-stopped
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: resume123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: resume_agent
     volumes:
       - ./sql:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -20,25 +22,29 @@
   chroma:
     image: chromadb/chroma:latest
     container_name: resume-chroma
-    ports:
-      - "8001:8000"
+    restart: unless-stopped
+    # 内部服务，不暴露公网端口
+    volumes:
+      - chroma_data:/chroma/chroma
     networks:
       - resume-net
 
   python-service:
     build: ./python-service
     container_name: resume-python
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
+    # 内部服务，不暴露公网端口（仅通过 Docker 内部网络访问）
     environment:
-      PRIMARY_MODEL: deepseek-chat
-      FALLBACK_MODEL: qwen-turbo
-      PRIMARY_API_KEY: REDACTED_OLD_KEY
-      FALLBACK_API_KEY: ""
+      PRIMARY_MODEL: ${PRIMARY_MODEL:-deepseek-chat}
+      FALLBACK_MODEL: ${FALLBACK_MODEL:-qwen-turbo}
+      PRIMARY_API_KEY: ${PRIMARY_API_KEY}
+      FALLBACK_API_KEY: ${FALLBACK_API_KEY:-}
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.0}
     volumes:
       - chroma_model_cache:/root/.cache/chroma
+      - ./resumes:/app/resumes
     depends_on:
       mysql:
         condition: service_healthy
@@ -50,6 +56,7 @@
   java-service:
     build: ./java-service
     container_name: resume-java
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
@@ -57,7 +64,7 @@
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
       MYSQL_USER: root
-      MYSQL_PASSWORD: resume123
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: resume_agent
     depends_on:
       - python-service
@@ -67,6 +74,7 @@
   frontend:
     image: nginx:alpine
     container_name: resume-frontend
+    restart: unless-stopped
     ports:
       - "3000:80"
     volumes:
@@ -79,6 +87,8 @@
 
 volumes:
   chroma_model_cache:
+  chroma_data:
+  mysql_data:
 
 networks:
   resume-net:
