@@ -1,6 +1,8 @@
 import time
 import hashlib
 import json
+import os
+import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -13,6 +15,9 @@ from import_data import import_resume_data
 from parse_resume import import_resume_file
 from chroma_store import get_collection
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="简历问答", version="1.0.0")
 
 INSUFFICIENT_ANSWER = "根据已有资料，无法确认该信息"
@@ -20,6 +25,46 @@ INSUFFICIENT_ANSWER = "根据已有资料，无法确认该信息"
 # 示例问题缓存：避免每次页面加载都调 LLM
 _questions_cache: dict = {"questions": [], "context_hash": "", "generated_at": 0}
 _CACHE_TTL_SECONDS = 300  # 5 分钟
+RESUMES_DIR = "/app/resumes"
+
+SUPPORTED_SUFFIXES = (".pdf", ".docx", ".txt", ".md")
+
+
+@app.on_event("startup")
+def auto_import_on_startup():
+    """启动时自动扫描 resumes 目录，若 ChromaDB 为空则自动导入简历。"""
+    try:
+        collection = get_collection()
+        existing = collection.get()
+        if existing["ids"]:
+            logger.info(f"ChromaDB 已有 {len(existing['ids'])} 条数据，跳过自动导入")
+            return
+    except Exception as e:
+        logger.warning(f"ChromaDB 连接失败，跳过自动导入: {e}")
+        return
+
+    if not os.path.isdir(RESUMES_DIR):
+        logger.info(f"resumes 目录不存在: {RESUMES_DIR}")
+        return
+
+    files = sorted([
+        f for f in os.listdir(RESUMES_DIR)
+        if f.lower().endswith(SUPPORTED_SUFFIXES)
+    ])
+    if not files:
+        logger.info("resumes 目录中无简历文件，跳过自动导入")
+        return
+
+    for filename in files:
+        filepath = os.path.join(RESUMES_DIR, filename)
+        try:
+            count = import_resume_file(filepath)
+            logger.info(f"自动导入成功: {filename} → {count} 条数据")
+            return  # 只导入第一个文件
+        except Exception as e:
+            logger.error(f"自动导入失败: {filename}: {e}")
+
+    logger.warning("所有简历文件导入失败")
 
 
 @app.get("/health")
