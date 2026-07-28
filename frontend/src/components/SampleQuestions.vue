@@ -1,6 +1,8 @@
-﻿<template>
+<template>
   <div class="sample-questions" v-if="questions.length">
-    <h3 class="sq-title">试试这些问题</h3>
+    <div class="sq-header">
+      <h3 class="sq-title">💡 试试这些问题</h3>
+    </div>
     <div class="sq-list">
       <button v-for="q in questions" :key="q" class="sq-chip" @click="$emit('select', q)">{{ q }}</button>
     </div>
@@ -25,18 +27,43 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.sample-questions { margin-bottom: 16px; }
-.sq-title { font-size: 14px; color: #888; margin-bottom: 8px; font-weight: 500; }
-.sq-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sample-questions {
+  margin-bottom: 20px;
+}
+.sq-header {
+  margin-bottom: 10px;
+}
+.sq-title {
+  font-size: 13px;
+  color: #8e99b0;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.sq-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .sq-chip {
   font-size: 13px;
-  padding: 6px 14px;
+  padding: 8px 16px;
   background: #fff;
-  border: 1px solid #dde4f0;
-  border-radius: 16px;
-  color: #4a6cf7;
+  border: 1px solid #e4e9f2;
+  border-radius: 20px;
+  color: #4a5568;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
-.sq-chip:hover { background: #f0f4ff; border-color: #4a6cf7; }
+.sq-chip:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+.sq-chip:active {
+  transform: translateY(0);
+}
 </style>
